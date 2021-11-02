@@ -1,7 +1,7 @@
 ---
 title: 'Project 1: Wrangling, Exploration, Visualization'
-author: "SDS322E"
-date: ''
+author: "Cade Talley (cct847)"
+date: 'November 1, 2021'
 output:
   html_document:
     toc: yes
@@ -19,23 +19,39 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Cade Talley (cct847) 
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+For this project, I used three datasets imported from "fivethirtyeight" originally called "bad_drivers", "state.x77" and "state_info". The bad_drivers variables that were utilized for my project contain percentages of automotive accidents occurring from different things such as alcohol consumption, speeding and total number of driver fatalities/billion miles based on individual states. The state.x77 dataset contains numeric indicators such as population (per 100,000 scale), average income, illiteracy rate, life expectancy, and area per square mile for each categorical state variable. The "state_info" dataset was added during the later part of this project after joining only the first two datasets initially, then realizing I needed additional categorical variables such as which region and division each state belongs to. 
+
+I found the combination of these datasets interesting because they allow us to see a larger picture of car crash indicators by key numeric indicators against categorical variables other than states. I also feel that this is such a prevalent issue in our country, specifically because we rely on personal means of transportation more heavily than other wealthy countries. 
 
 ```{R}
 # read your datasets in here, e.g., with read_csv()
-
+library(tidyverse)
+library(ggplot2)
+library(fivethirtyeight)
+library(knitr)
+library(kableExtra)
+library(gt)
+data1 <- as.data.frame(bad_drivers)
+data2 <- as.data.frame(state.x77)
+data3 <- as.data.frame(state_info)
 ```
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
+
+The first line of code below adds the state's names to the first column, as the imported dataset did not have the names defined as a variable within the column. I chose to wait until the wrangling sections to reshape one of my summary statistics table with pivot tidying methods as all of my datasets were tidy to begin with.
 
 ```{R}
-# your tidying code (if applicable; can also wait until wrangling section)
+
+#column 1 needs to have variable as "state"
+info <- tibble:: rownames_to_column(data2, "state")
+drive <- as.data.frame(bad_drivers)
+
+ 
 ```
 
     
@@ -43,49 +59,174 @@ If your datasets are tidy already, demonstrate that you can reshape data with pi
 
 ```{R}
 # your joining code
+state_join <- left_join(info, drive, by = "state")
+state_join <- left_join(state_join, data3, by = "state")
+# Calculate total observations/rows in each dataset IDs the datasets have common 
+nrow(drive)
+nrow(info)
+nrow(data3)
 
-# your joining code
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+The state_join dataset joins all three of the original datasets (first: the info and drive datasets, then the first two joined with the third dataset). The first chunk of code counts the number of rows in the columns, showing "drive" containing 51 rows, "info" containing 50 rows, and "data3" containing 51 rows.
+
+```{R}
+#unique IDs in drive dataset
+unique(drive$state)
+#unique IDs in info dataset
+unique(info$state)
+#unique IDs in data3 dataset
+unique(data3$state)
+
+```
+
+This chunk of code uses the unique function to identify each unique ID "state" present in all three of the datasets.
+
+```{R}
+
+#IDs that appear in drive but not info
+anti_join(drive, info, by = "state")
+#IDs that appear in drive but not data3
+anti_join(drive, data3, by = "state")
+#IDs that appear in data3 but not info
+anti_join(data3, info, by = "state")
+
+
+```
+
+To identify which IDs were present in some of the datasets but not the others, I used antijoin, showing that the datasets "drive" and "data3" both have the unique ID for Washington DC, while the dataset "info" does not include DC as an ID.
+
+```{R}
+#IDs drive and info have in common
+inner_join(drive, info, by = "state")[,1]
+#IDs drive and data3 have in common
+inner_join(drive, data3, by = "state")[,1]
+#IDs data3 and info have in common 
+inner_join(data3, info, by = "state") [,1]
+
+```
+
+Finally, I used inner join in the final chunk of the Joining/Merging section to identify the state IDs the three datasets had in common, which included all of the states besides Washington DC for the "info" dataset. 
 
 ####  Wrangling
 
 ```{R}
-# your wrangling code
+# new variable that is function of 2 variables 
+state_join <- state_join %>% mutate(death_land_ratio = ((num_drivers*1000000000)/(Area^2)))
+state_join <- state_join %>% mutate(death_land_ratio = format(state_join$death_land_ratio, scientific = FALSE, digits = 3)) 
+# replace ratio as numeric variable 
+state_join$death_land_ratio <- as.numeric(as.character(state_join$death_land_ratio))
+state_join %>% group_by(state) %>% summarize(death_land_ratio) -> ratio_table
+ratio_table %>% kable()
 
-# your wrangling code
-
-# your wrangling code
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+In the first chunk of the wrangling section, I decided to create a variable that calculated the ratio of driver fatalities to state land area. Since the "num_drivers" variable was fatalities per billion miles and state area was given in square miles, I decided to include a conversion seen in the equation above to simplify the units. Additionally, I ran into some issues with the output variable class, so I converted the resulting "death_land_ratio" variable to a numeric one and removed the scientific notation for aesthetic purposes. 
+
+
+```{R}
+#use mutate, filter, select, arrange, group_by, summarize
+state_join <- state_join %>% select(-Frost, -losses, -insurance_premiums, -state_abbrev, -Murder, -perc_no_previous, -Income, -perc_not_distracted,-"HS Grad")
+
+# use stringr (str_detect or str_replace, str_view)
+
+state_join <- state_join %>% mutate(division = str_replace_all(division, "-", " "))
+unique(state_join$division)
+
+```
+
+In this chunk of code, I removed some of the variables that I found useless and redundant for the purposes of this project. To demonstrate the use of "stringr" function, I removed a hyphen from the "Mid-Atlantic" division ID.
+
+```{R}
+#summary stats: mean, sd, var, n, quantile, min, max, n_distinct, cor
+
+
+# sum stat table of mean and median grouped by region for each numeric variable 
+state_join %>% group_by(region) %>% summarize_if(is.numeric, list("_mean"=mean, "_median"=median)) %>%  pivot_longer(contains("_")) %>% separate(name, into=c("Region", "Stat"), sep="__") %>% mutate_if(is.numeric, round, 3) -> table1
+
+table1 %>% kable()
+```
+
+This table was created to display the mean and median of each numeric variable in the joined dataset.For simplicity and aesthetic purposes, I grouped these summary statistics by region and pivoted the statistic values into a column. This grouping allows us to see the spread of each mean/median numeric variable over the regions, and it was piped into the kable package to improve it's look.   
+
+```{R}
+# other sum stat tables (min, max, sd) all grouped by region because individual states would not return summary values
+state_join %>% group_by(region) %>% summarize_if(is.numeric, min) -> table_min
+table_min %>% kable()
+
+```
+
+In this chunk, the resulting table shows the minimum values of of 9 numeric variables. 
+
+```{R}
+state_join %>% group_by(region) %>% summarize_if(is.numeric, max) -> table_max
+table_max %>% kable()
+```
+In this chunk, the resulting table shows the maximum values of of 9 numeric variables
+
+```{R}
+state_join %>% group_by(region) %>% summarize_if(is.numeric, sd) -> table_sd
+table_sd %>% kable()
+
+```
+
+In this chunk, the resulting table shows the standard deviations of 9 numeric variables. 
+
+```{R}
+#Comparing the numeric statistics of southern region (not including TX) with those of Texas
+state_join %>% filter(region == "South", state != "Texas") %>%  summarize_if(is.numeric, mean) -> south_region_table
+
+
+state_join %>% filter(state == "Texas") %>%  summarize_if(is.numeric, mean) -> texas_table 
+
+two_regions = rbind(south_region_table, texas_table)
+rownames(two_regions) = c("south", "texas")
+two_regions %>% kable()
+```
+
+I thought it would be interesting to compare the numeric variable statistics of all states in the southern region, excluding Texas, with those of Texas. This table is the result, which shows significant differences in the population, accident fatalities involved with alcohol and death-to-land ratio. 
+
+```{R}
+# categorical variable count by region: number of states in each region and division 
+state_join %>% group_by(region) %>% select(state) %>% summarize(count = n()) %>% arrange(desc(count)) -> region_table
+region_table %>% kable()
+state_join %>% group_by(division) %>% select(state) %>% summarize(count = n()) %>% arrange(desc(count)) -> division_table
+division_table %>% kable()
+
+```
+
+These two tables show the total number of states in each categorical variable. The first table shows the number of states in each US region, while the second table shows the number of states in each US division. 
+
+```{R}
+#Defined function of percent of people speeding involved in accidents by the total population of that state to find number of people in population in accidents that were speeding 
+
+num_speed <- function(x) { x$perc_speeding*(x$Population) }
+a = state_join %>% summarize(Num_Speed = num_speed(.))
+a = cbind(state = state_join$state, a)
+knitr::kable(a)
+
+```
+
+This function was defined by the percent of people speeding involved in accidents multiplied by the total population of a given state. The resulting table show the total number of fatalities resulting from speeding for each state. 
 
 
 #### Visualizing
 
 ```{R}
-# your plot 1
+ggplot(state_join, aes(x = death_land_ratio , y = division, fill = region)) + geom_bar(stat="summary",fun=mean) + geom_errorbar(stat="summary", fun.data=mean_se, width = 0.5) + xlim(0,150) + xlab("Ratio of Fatal Accidents per mile") + ylab("US Division") + ggtitle("Accident fatalities per mile across US Divisions") + theme(plot.title = element_text(size = rel(1.5))) 
 ```
 
-Your discussion of plot 1
+This plot depicts the ratio of fatal accidents across US divisions per mile. Each division is associated with a US region according to color. There is a significantly larger ratio in the "New England" division due to the fact that New England is classified as its own division and makes up a much smaller proportion of area compared to the other divisions. Additionally, it appears that the southern region (West South Central, South Atlantic, East South Central divisions) has the highest average ratio when compared to the other regions. The error bars show how far each ratio-value deviates from the applicable division's average. This means there is much more 'variation' in the number of fatalities per mile in the New England and South Atlantic divisions, thus making their ratio's less reliable predictors.  
 
 ```{R}
-# your plot 2
+ggplot(state_join, aes(x = perc_speeding, y = perc_alcohol, color = region)) + geom_point(shape=1, color="red") + geom_line(method = "lm", se = F) + scale_y_continuous(limits = c(15, 45))+ ylab("Percent Accident Fatalities w/ Alcohol") + xlab("Percent Accident Fatalities w/ Speeding") + ggtitle("Fatalities by Alcohol and Speeding") + facet_wrap(~region) + geom_smooth(method=lm, se=FALSE)
 ```
 
-Your discussion of plot 2
+This facet wrapped line plot shows the percent of drivers involved in fatal automotive accidents who were speeding against those who were alcohol-impaired. To make this distribution more aesthetic, I facet wrapped by region and included a regression to look for correlation between driver fatalities. There appears to be a slightly positive correlation between the two variables for all four US regions, and the most positive correlation appears to be in the southern region. 
 
 ```{R}
-# your plot 3
+ggplot(state_join, aes(x = num_drivers, y = division, fill = region)) + geom_point(shape=2, color="navy") + geom_boxplot() + scale_x_binned(limit = c(10, 25)) + ylab("US Divisions") + xlab("Number of Driving Fatalities (per 1e^9 miles)") + ggtitle("Boxplot of Annual Car Fatalities by US Divisions") + theme(plot.title = element_text(size = rel(1.5)))
 ```
 
-Your discussion of plot 3
-
-#### Concluding Remarks
-
-If any!
-
-
-
+This boxplot distribution depicts the annual number of drivers involved in fatal collisions per billion miles against US Divisions (according to Census location). They are also color filled by region to show regional association between geographic region and division. Overall, it appears that the southern regions tend to have the greatest average number of fatalities, while the northeast tends to have the smallest amount of total annual fatalities. It also appears that the South Atlantic division has the greatest spread of fatality numbers across the states in that division, while the West North Central division has the most significant outliers. 
 
